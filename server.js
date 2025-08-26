@@ -4,6 +4,7 @@ import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import cors from 'cors'; // ★★★ CORSパッケージをインポート ★★★
 
 // .envファイルから環境変数を読み込む
 dotenv.config();
@@ -15,6 +16,9 @@ const port = 3000;
 // __dirnameをESモジュールで使えるように設定
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ★★★ CORSミドルウェアを使用して、外部からのリクエストを許可 ★★★
+app.use(cors());
 
 // JSON形式のリクエストボディを解析できるようにする
 app.use(express.json());
@@ -36,10 +40,10 @@ app.post('/get-judgment', async (req, res) => {
 
 ### ルール:
 - ユーザーの質問: 「${userInput}」
-- **ストーリーが最も面白くなるように、以下のどちらかの形式で判決を生成してください。**
+- **ストーリーが最も面白くなるように、以下のどちらかの形式で判決を生成してください。**形式1を選びましたなどの文章はいりません(必ずこういった趣旨の文章は書かないでください。)。形式に従って、出力してください。
   - **形式1: 第一審で完結するシンプルな裁判**
   - **形式2: 第一審の判決が第二審で覆る、ドラマチックな裁判**
-- どちらの形式を選ぶかは、あなたに一任します。
+- 形式1は50%、形式2は50%の確率で選んで生成してください(重要！！！！！！)。
 - 判決理由には、架空のキャラクター、証言、証拠などを盛り込み、面白いストーリーを作成してください。
 
 ### 出力フォーマット
@@ -84,7 +88,6 @@ app.post('/get-judgment', async (req, res) => {
     try {
         const apiKey = process.env.API_KEY; // .envファイルからAPIキーを取得
 
-        // APIキーが存在するかどうかを確認
         if (!apiKey) {
             console.error("APIキーが.envファイルに設定されていません。");
             throw new Error("サーバー側でAPIキーが設定されていません。");
@@ -92,7 +95,6 @@ app.post('/get-judgment', async (req, res) => {
 
         const chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
         const payload = { contents: chatHistory };
-        // ★★★ 修正点: モデル名を最新版に変更 ★★★
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
 
         const response = await fetch(apiUrl, {
@@ -102,7 +104,6 @@ app.post('/get-judgment', async (req, res) => {
         });
 
         if (!response.ok) {
-            // APIからのエラーレスポンスを詳しくログに出力
             const errorBody = await response.text();
             console.error('Google APIからのエラー:', errorBody);
             throw new Error(`API Error: ${response.status} ${response.statusText}`);
@@ -112,7 +113,6 @@ app.post('/get-judgment', async (req, res) => {
 
         if (result.candidates && result.candidates.length > 0) {
             const text = result.candidates[0].content.parts[0].text;
-            // 結果をフロントエンドに送り返す
             res.json({ judgment: text });
         } else {
             throw new Error("APIから有効な応答がありませんでした。");
@@ -120,7 +120,6 @@ app.post('/get-judgment', async (req, res) => {
 
     } catch (error) {
         console.error("サーバー内部エラー:", error.message);
-        // フロントエンドにエラーメッセージを返す
         res.status(500).json({ error: `サーバーでエラーが発生しました: ${error.message}` });
     }
 });

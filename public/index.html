@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>裁判官シミュレーター</title>
+    <title>裁判シミュレーター</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,9 +25,25 @@
         .spinner {
             animation: spin 1s linear infinite;
         }
+        /* 広告プレースホルダー用のスタイル */
+        .ad-banner {
+            background-color: #2d3748;
+            color: #a0aec0;
+            text-align: center;
+            padding: 1rem;
+            margin: 1rem auto;
+            border: 2px dashed #4a5568;
+            max-width: 728px;
+            width: 100%;
+        }
     </style>
 </head>
 <body class="text-gray-200">
+
+    <!-- ★★★ 上部バナー広告を追加 ★★★ -->
+    <div class="ad-banner">
+        <p>ここに上部広告が表示されます (728x90)</p>
+    </div>
 
     <div class="container mx-auto p-4 md:p-8 max-w-3xl min-h-screen flex flex-col">
         <header class="text-center mb-8">
@@ -41,7 +57,7 @@
                 <p class="text-sm text-gray-400 mb-4">「〇〇したら犯罪になるか？」という形式で、あなたの疑問を入力してください。</p>
                 <textarea id="crime-input" rows="3" class="w-full p-3 bg-gray-800 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-400 text-gray-200 transition duration-300" placeholder="例：夜中にこっそりアイスを食べたら犯罪になるか？"></textarea>
                 <button type="submit" id="submit-button" class="mt-4 w-full bg-yellow-600 hover:bg-yellow-700 text-gray-900 font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out transform hover:scale-105 flex items-center justify-center gap-2 disabled:bg-gray-500 disabled:cursor-not-allowed">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     <span>判決を求める</span>
                 </button>
             </form>
@@ -58,6 +74,23 @@
         </main>
     </div>
 
+    <!-- ★★★ 下部バナー広告を追加 ★★★ -->
+    <div class="ad-banner">
+        <p>ここに下部広告が表示されます (728x90)</p>
+    </div>
+
+    <!-- ポップアップ広告用のモーダル -->
+    <div id="ad-modal" class="hidden fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-gray-800 border border-yellow-500 p-8 rounded-lg text-center text-gray-200 shadow-2xl">
+            <h3 class="text-2xl font-bold mb-4 text-yellow-100">広告</h3>
+            <p>まもなく審議が開始されます...</p>
+            <div id="ad-timer" class="text-6xl font-bold my-4 text-yellow-300">10</div>
+            <button id="close-ad-button" class="bg-yellow-600 hover:bg-yellow-700 text-gray-900 font-bold py-2 px-6 rounded-lg transition duration-300">
+                スキップ
+            </button>
+        </div>
+    </div>
+
     <script>
         const crimeForm = document.getElementById('crime-form');
         const crimeInput = document.getElementById('crime-input');
@@ -65,28 +98,47 @@
         const loader = document.getElementById('loader');
         const resultAreaContainer = document.getElementById('result-area-container');
         const resultArea = document.getElementById('result-area');
+        const adModal = document.getElementById('ad-modal');
+        const adTimer = document.getElementById('ad-timer');
+        const closeAdButton = document.getElementById('close-ad-button');
+        let adCountdownInterval;
 
-        crimeForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
+        // ★★★ 広告を表示し、終了後に関数を実行するロジックを修正 ★★★
+        function showAdThen(callback) {
+            adModal.classList.remove('hidden');
+            let countdown = 10;
+            adTimer.textContent = countdown;
+
+            const finishAd = () => {
+                clearInterval(adCountdownInterval);
+                adModal.classList.add('hidden');
+                callback(); // 広告終了後に、渡された関数（API通信処理）を実行
+            };
+
+            adCountdownInterval = setInterval(() => {
+                countdown--;
+                adTimer.textContent = countdown;
+                if (countdown <= 0) {
+                    finishAd();
+                }
+            }, 1000);
+
+            closeAdButton.onclick = finishAd;
+        }
+
+        // サーバーにリクエストを送り、判決を取得する関数
+        async function fetchJudgment() {
             const userInput = crimeInput.value.trim();
-            if (!userInput) {
-                resultArea.textContent = '質問内容を入力してください。';
-                resultAreaContainer.classList.remove('hidden');
-                return;
-            }
-
+            
             submitButton.disabled = true;
             submitButton.querySelector('span').textContent = '審議中...';
             loader.classList.remove('hidden');
             resultAreaContainer.classList.add('hidden');
 
             try {
-                // バックエンドのAPIエンドポイントにリクエストを送信
-                const response = await fetch('/get-judgment', {
+                const response = await fetch('http://localhost:3000/get-judgment', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userInput: userInput }),
                 });
 
@@ -102,12 +154,27 @@
                 console.error("Error:", error);
                 resultArea.textContent = `エラーが発生しました。\n${error.message}\n\nしばらくしてからもう一度お試しください。`;
             } finally {
+                // UIの状態を元に戻す
                 submitButton.disabled = false;
                 submitButton.querySelector('span').textContent = '判決を求める';
                 loader.classList.add('hidden');
                 resultAreaContainer.classList.remove('hidden');
                 resultAreaContainer.scrollIntoView({ behavior: 'smooth' });
             }
+        }
+
+        // フォーム送信時のイベント
+        crimeForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+            const userInput = crimeInput.value.trim();
+            if (!userInput) {
+                resultArea.textContent = '質問内容を入力してください。';
+                resultAreaContainer.classList.remove('hidden');
+                return;
+            }
+
+            // ★★★ まず広告を表示し、広告が終わったらfetchJudgment関数を呼び出す ★★★
+            showAdThen(fetchJudgment);
         });
     </script>
 </body>
